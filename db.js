@@ -9,6 +9,6 @@ const PSQL_COMMAND = `PGPASSWORD=tq78MykHQOEY1NyvlVNtT0Bf7mxJUjI8 psql -h dpg-cq
 //   dialect: 'postgres',
 // });
 
-const sequelize = new Sequelize(EXTERNAL_POSTGRESQL_DB_URL);
+const sequelize = new Sequelize(process.env.EXTERNAL_POSTGRESQL_DB_URL);
 
 export default sequelize;

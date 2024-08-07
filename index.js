@@ -126,7 +126,7 @@ app.use(fileUpload({}));
 app.get('/', (req, res) => {
     // console.log(res.body)
     res.status(200).json('server is work')
-})
+});
 
 const startApp = async () => {
     try {
@@ -140,7 +140,6 @@ const startApp = async () => {
     } catch (error) {
         console.log('Unable to connect to the database:', error);
     }
-
 }
 
 await startApp();
