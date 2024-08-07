@@ -5,15 +5,13 @@ import mongoose from 'mongoose';
 import router from "./router.js";
 import fileUpload from "express-fileupload";
 import ScheduleBot from "./ScheduleBot.js";
+import sequelize from "./db.js";
+import ScheduleBotModel from "./models.js";
 
 const PORT = 5000;
 const tokenBot = '7469541723:AAFoLvL3mXtRREuUx5Hks9H7EshxZnEq_Nk';
 const passwordMongoDB = `L9WjvQvz80s3mjkQ`;
 const MONGO_DB_URL = `mongodb+srv://pencil:${passwordMongoDB}@cluster0.rzevdaa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
-const passwordPostgresQL = ``;
-const POSTGRESQL_DB_URL = `postgresql://mksenni:tq78MykHQOEY1NyvlVNtT0Bf7mxJUjI8@dpg-cqovtpo8fa8c73c3ncl0-a/schedule_5u9c`;
-
 
 const bot = new TelegramBot(tokenBot, {polling: true});
 
@@ -44,6 +42,7 @@ bot.onText(/\/hello (.+)/, (msg, match) => {
 bot.on('callback_query', async (msg) => {
     const data = msg.data;
     const chatId = msg.message.chat.id;
+    const user = await ScheduleBotModel.findOne({chatId});
 
     console.log(msg)
 
@@ -52,22 +51,24 @@ bot.on('callback_query', async (msg) => {
         return startGameRandomNumber(chatId);
     }
     if (data === gameDb[chatId]) {
-
-        return bot.sendMessage(chatId, `Ты угадал цифру ${data}!`, scheduleBot.playAgainOptions);
+        user.right += 1;
+        await bot.sendMessage(chatId, `Ты угадал цифру ${data}!`, scheduleBot.playAgainOptions);
     } else if (data !== gameDb[chatId]) {
         if (Object.keys(days).includes(data)) {
-            return bot.sendMessage(chatId, `Ты выбрал ${data}`);
+            await bot.sendMessage(chatId, `Ты выбрал ${data}`);
         }
-        return bot.sendMessage(chatId, `Не получилось...я загадал цифру ${gameDb[chatId]}`, scheduleBot.playAgainOptions);
+        user.wrong += 1;
+        await bot.sendMessage(chatId, `Не получилось...я загадал цифру ${gameDb[chatId]}`, scheduleBot.playAgainOptions);
     }
+    await user.save();
 
-    try {
-        const {faculty, course, date, month, week, lessons} = data;
-        const scheduleDay = await ScheduleDay.create({faculty, course, date, month, week, lessons});
-        return bot.sendMessage(chatId, `Ты внес в расписание ${scheduleDay}!`);
-    } catch (e) {
-        return bot.sendMessage(chatId, `Ошибка!`);
-    }
+    // try {
+    //     const {faculty, course, date, month, week, lessons} = data;
+    //     const scheduleDay = await ScheduleDay.create({faculty, course, date, month, week, lessons});
+    //     return bot.sendMessage(chatId, `Ты внес в расписание ${scheduleDay}!`);
+    // } catch (e) {
+    //     return bot.sendMessage(chatId, `Ошибка!`);
+    // }
 })
 
 const startBot = async () => {
@@ -76,35 +77,45 @@ const startBot = async () => {
         {command: '/schedule', description: 'Получить расписание'},
         {command: '/game', description: 'Давай поиграем'},
         {command: '/setschedule', description: 'Внести расписание'},
+        {command: '/info', description: 'Информация о результатах игр'},
     ]);
 
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = msg.text;
 
-        // send a message to the chat acknowledging receipt of their message
-        if (text === '/start') {
-            await bot.sendSticker(chatId, `https://tlgrm.eu/_/stickers/a90/399/a9039918-d481-320b-bbae-7b5cc05a520b/9.webp`)
-            return bot.sendMessage(chatId, `${msg.chat.first_name}! Где вас носит!`);
-        }
+        try {
+            if (text === '/start') {
+                await ScheduleBotModel.create({chatId});
+                await bot.sendSticker(chatId, `https://tlgrm.eu/_/stickers/a90/399/a9039918-d481-320b-bbae-7b5cc05a520b/9.webp`)
+                return bot.sendMessage(chatId, `${msg.chat.first_name}! Где вас носит!`);
+            }
 
-        if (text.trim().includes('потерял')) {
-            await bot.sendMessage(chatId, `Может быть вас превратить в карту?`);
-            return bot.sendMessage(chatId, `Или в настенные часы?`);
-        }
+            if (text === '/info') {
+                const user = await ScheduleBotModel.findOne({chatId});
+                return bot.sendMessage(chatId, `Тебя зовут ${msg.chat.first_name}. В игре у тебя ${user.right} правильных ответов и ${user.wrong} неправильных ответов`);
+            }
 
-        if (text === '/schedule') {
-            return bot.sendMessage(chatId, `Какой день недели интересует?`, scheduleBot.scheduleOptions);
-        }
+            if (text.trim().includes('потерял')) {
+                await bot.sendMessage(chatId, `Может быть вас превратить в карту?`);
+                return bot.sendMessage(chatId, `Или в настенные часы?`);
+            }
 
-        if (text === '/game') {
-            return startGameRandomNumber(chatId);
+            if (text === '/schedule') {
+                return bot.sendMessage(chatId, `Какой день недели интересует?`, scheduleBot.scheduleOptions);
+            }
+
+            if (text === '/game') {
+                return startGameRandomNumber(chatId);
+            }
+            return bot.sendMessage(chatId, `Я тебя не понимать`);
+            // send a message to the chat acknowledging receipt of their message
+        } catch (e) {
+            console.log('Error start bot', e);
+            return bot.sendMessage(chatId, `Ошибка!`);
         }
-        return bot.sendMessage(chatId, `Я тебя не понимать`);
     });
 }
-
-await startBot();
 
 const app = express();
 app.use(express.json());
@@ -119,12 +130,15 @@ app.get('/', (req, res) => {
 
 const startApp = async () => {
     try {
-        await mongoose.connect(MONGO_DB_URL);
+        // await mongoose.connect(MONGO_DB_URL);
+        await sequelize.authenticate();
+        await sequelize.sync();
+        await startBot();
         app.listen(PORT, () => {
             console.log("SERVER START ON PORT " + PORT)
         });
     } catch (error) {
-        console.log(error);
+        console.log('Unable to connect to the database:', error);
     }
 
 }

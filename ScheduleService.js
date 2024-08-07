@@ -1,5 +1,4 @@
 import ScheduleDay from "./ScheduleDay.js";
-import fileService from "./fileService.js";
 
 class ScheduleService {
   async create(schedule, photo) {
