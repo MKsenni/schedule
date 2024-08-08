@@ -44,8 +44,6 @@ bot.on('callback_query', async (msg) => {
     const chatId = msg.message.chat.id;
     const user = await ScheduleBotModel.findOne({chatId});
 
-    console.log(msg)
-
     if (data === '/play_again') {
 
         return startGameRandomNumber(chatId);
